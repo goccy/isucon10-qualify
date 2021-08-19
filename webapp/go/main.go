@@ -18,6 +18,10 @@ import (
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
 	"github.com/labstack/gommon/log"
+	"github.com/newrelic/go-agent/v3/integrations/logcontext/nrlogrusplugin"
+	"github.com/newrelic/go-agent/v3/integrations/nrecho-v3"
+	echologrus "github.com/plutov/echo-logrus"
+	"github.com/sirupsen/logrus"
 )
 
 const Limit = 20
@@ -238,15 +242,27 @@ func init() {
 	json.Unmarshal(jsonText, &estateSearchCondition)
 }
 
+var logger = logrus.New()
+
 func main() {
 	// Echo instance
 	e := echo.New()
 	e.Debug = true
 	e.Logger.SetLevel(log.DEBUG)
 
+	//logrusにLogs in Context用のフォーマッターを設定
+	logger.SetFormatter(nrlogrusplugin.ContextFormatter{})
+	logger.SetLevel(logrus.DebugLevel)
+	echologrus.Logger = logger
+	e.Logger = echologrus.GetEchoLogger()
+	e.Use(echologrus.Hook())
+
 	// Middleware
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
+	if newrelicApp != nil {
+		e.Use(nrecho.Middleware(newrelicApp))
+	}
 
 	// Initialize
 	e.POST("/initialize", initialize)
